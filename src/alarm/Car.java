@@ -17,6 +17,9 @@ public class Car {
 	public boolean flash;
 	public boolean sound;
 	
+	public int pin;
+	public int tries;
+	
 	public Thread armedThread;
 	public Thread alarmThread;
 	
@@ -24,7 +27,8 @@ public class Car {
 	
 	private PrintStream out;
 	
-	public Car(PrintStream out_){
+	public Car(PrintStream out_, int pin){
+		this.pin = pin;
 		open = true;
 		locked = false;
 		armed = false;
@@ -33,6 +37,8 @@ public class Car {
 		flash = false;
 		sound = false;
 		armedThread = null;
+		alarmThread = null;
+		tries = 3;
 		out = out_;
 		changeState("OpenAndUnlocked");
 	}
@@ -58,7 +64,7 @@ public class Car {
 				return;
 			}
 		}
-		if(armed){ 
+		if(armed){
 			if(!open){
 				open = true;
 				this.alarmThread();
@@ -70,7 +76,7 @@ public class Car {
 	//try to close door
 	public void close(){
 		out.println("- close");
-		if(silentAlarm){
+		if(silentAlarm && open){
 			open = false;
 			silentAlarm = false;
 			changeState("Armed");
@@ -116,42 +122,62 @@ public class Car {
 		}
 	}
 	
-	public void unlock(){
-		out.println("- unlock");
-		if(!locked){
-			//do nothing
-			out.println("already unlocked!");
+	public void unlock(int pin){
+		out.println("- unlock: " + pin);
+		if(1000 > pin || 9999 < pin){
+			System.err.println("pin not 4 digits!");
 			return;
 		}
-		if(alarm || silentAlarm){
-			this.interruptAlarmThread();
-			flash = false;
-			sound = false;
-			alarm = false;
-			silentAlarm = false;
-			locked = false;
-			armed = false;
-			changeState("OpenAndUnlocked");
-			return;
-		}
-		if(armed){
-			armed = false;
-			locked = false;
-			changeState("ClosedAndUnlocked");
-			return;
-		}
-		if(!armed){
-			if(locked && open){
-				locked = false;
-				changeState("OpenAndUnlocked");
+		
+		//check pin
+		if(pin == this.pin){
+			tries = 3;
+			if(!locked){
+				//do nothing
+				out.println("already unlocked!");
 				return;
 			}
-			if(locked && !open){
+			if(alarm || silentAlarm){
+				this.interruptAlarmThread();
+				flash = false;
+				sound = false;
+				alarm = false;
+				silentAlarm = false;
+				locked = false;
+				armed = false;
+				if(open){
+					changeState("OpenAndUnlocked");
+				} else{
+					changeState("ClosedAndUnlocked");
+				}
+				return;
+			}
+			if(armed){
+				armed = false;
 				locked = false;
 				changeState("ClosedAndUnlocked");
-				this.interruptArmedThread();
 				return;
 			}
+			if(!armed){
+				if(locked && open){
+					locked = false;
+					changeState("OpenAndUnlocked");
+					return;
+				}
+				if(locked && !open){
+					locked = false;
+					changeState("ClosedAndUnlocked");
+					this.interruptArmedThread();
+					return;
+				}
+			}
+		} else{
+			tries -= 1;
+			System.err.println("pin incorrect! remaining tries: " + tries);
+			if(tries < 1 && armed){
+				this.alarmThread();
+			}
+			return;
 		}
 	}
 	
@@ -168,6 +194,21 @@ public class Car {
 			changeState("Armed");
 			return;
 		}
+	}
+	
+	public void setPinCode(int oldPin, int newPin){
+		out.println("- set pincode: " + oldPin + " -> " + newPin);
+		if(1000 > oldPin || 9999 < oldPin){
+			System.err.println("oldPin not 4 digits!");
+			return;
+		}
+		if(1000 > newPin || 9999 < newPin){
+			System.err.println("newPin not 4 digits!");
+			return;
+		}
+		
+		//TODO: implement pin
+		
 	}
 	
 	public void activateFullAlarm(){
@@ -189,7 +230,11 @@ public class Car {
 		alarm = false;
 		flash = false;
 		silentAlarm = true;
-		changeState("SilentAndOpen");
+		if(open){
+			changeState("SilentAndOpen");
+		} else{
+			changeState("SilentAndClosed");
+		}
 	}
 	
 	private void changeState(String newState){
