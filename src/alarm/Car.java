@@ -2,6 +2,7 @@ package alarm;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class Car {
@@ -9,6 +10,7 @@ public class Car {
 	public boolean armed;
 
 	public boolean locked;
+	public boolean lockedTrunk;
 	
 	public int[] doors;
 	public boolean open;
@@ -33,6 +35,7 @@ public class Car {
 		this.pin = pin;
 		open = true;
 		locked = false;
+		lockedTrunk = false;
 		armed = false;
 		alarm = false;
 		silentAlarm = false;
@@ -42,117 +45,172 @@ public class Car {
 		alarmThread = null;
 		tries = 3;
 		triesNewPin = 3;
-		doors = new int[] {1,1,1,1,1}; //doors 0-3, trunk 4
+		doors = new int[] {1,1,1,1,1}; //doors 0-3, trunk 4. value 1 means open, 0 means closed
 		out = out_;
 		changeState("OpenAndUnlocked");
 	}
 	
 	//try to open door
-	public void open(){
-		out.println("- open");
+	public void open(int door){
+		out.println("- open " + door);
+		if(door < 0 || door > 4) {
+			System.err.println("door number wrong: " + door);
+			return;
+		}
 		if(open){
-			//do nothing
-			out.println("already open!");
+			setDoor(door, 1);
 			return;
 		}
 		if(!armed){
 			if(!alarm && !silentAlarm){
 				if(!open && locked){
-					open = true;
-					changeState("OpenAndLocked");
-					this.interruptArmedThread();
-					return;
+					setDoor(door, 1);
+					if(!this.doorsClosed()) {
+						open = true;
+						changeState("OpenAndLocked");
+						this.interruptArmedThread();
+						return;
+					}
 				}
 				if(!open && !locked){
-					open = true;
-					changeState("OpenAndUnlocked");
-					return;
+					setDoor(door, 1);
+					if(!this.doorsClosed()) {
+						open = true;	
+						changeState("OpenAndUnlocked");
+						return;
+					}
 				}
 			} else{
 				if(!open && locked){
-					open = true;
-					changeState("OpenAndLockedUnderAlarm");
-					this.interruptArmedThread();
-					return;
+					setDoor(door, 1);
+					if(!this.doorsClosed()) {
+						open = true;
+						changeState("OpenAndLockedUnderAlarm");
+						this.interruptArmedThread();
+						return;
+					}
 				}
 				if(!open && !locked){
-					open = true;
-					changeState("OpenAndUnlockedUnderAlarm");
-					return;
+					setDoor(door, 1);
+					if(!this.doorsClosed()) {
+						open = true;
+						changeState("OpenAndUnlockedUnderAlarm");
+						return;
+					}
 				}
 			}
 		}
 		if(armed){
 			if(!open){
-				open = true;
-				this.alarmThread();
-				changeState("Alarm");
+				setDoor(door, 1);
+				if(door == 4) {
+					//trunk
+					if(lockedTrunk) {
+						this.alarmThread();
+						changeState("Alarm");
+						return;
+					} else {
+						//fine
+						return;
+					}
+				} else {
+					if(!this.doorsClosed()) {
+						open = true;
+						this.alarmThread();
+						changeState("Alarm");
+						return;
+					}
+				}
 			}
 		}
 	}
 	
 	//try to close door
-	public void close(){
-		out.println("- close");
-		if(silentAlarm && open && locked){
-			this.interruptAlarmThread();
-			flash = false;
-			sound = false;
-			alarm = false;
-			silentAlarm = false;
-			
-			open = false;
-			changeState("Armed");
+	public void close(int door){
+		out.println("- close " + door);
+		if(door < 0 || door > 4) {
+			System.err.println("door number wrong: " + door);
+			return;
+		}
+		if(silentAlarm && open && locked || silentAlarm && locked && (door == 4)){
+			setDoor(door, 0);
+			if(this.doorsClosed()) {
+				this.interruptAlarmThread();
+				flash = false;
+				sound = false;
+				alarm = false;
+				silentAlarm = false;
+				
+				open = false;
+				changeState("Armed");
+			}
 			return;
 		}
 		if(!open){
 			//do nothing
-			out.println("already closed!");
+			setDoor(door, 0);
 			return;
 		}
 		if(!alarm && !silentAlarm){
 			if(open && locked){
-				open = false;
-				changeState("ClosedAndLocked");
-				this.armThread();
-				return;
+				setDoor(door, 0);
+				if(this.doorsClosed()) {
+					open = false;
+					changeState("ClosedAndLocked");
+					this.armThread();
+					return;
+				}
 			}
 			if(open && !locked){
-				open = false;
-				changeState("ClosedAndUnlocked");
-				return;
+				setDoor(door, 0);
+				if(this.doorsClosed()) {
+					open = false;
+					changeState("ClosedAndUnlocked");
+					return;
+				}
 			}
 		} else{
 			if(open && locked){
-				open = false;
-				changeState("ClosedAndLockedUnderAlarm");
-				this.armThread();
-				return;
+				setDoor(door, 0);
+				if(this.doorsClosed()) {
+					open = false;
+					changeState("ClosedAndLockedUnderAlarm");
+					this.armThread();
+					return;
+				}
 			}
 			if(open && !locked){
-				open = false;
-				changeState("ClosedAndUnlockedUnderAlarm");
-				return;
+				setDoor(door, 0);
+				if(this.doorsClosed()) {
+					open = false;
+					changeState("ClosedAndUnlockedUnderAlarm");
+					return;
+				}
 			}
 		}
 	}
 	
+	//try to lock door
 	public void lock(){
 		out.println("- lock");
 		if(locked){
 			//do nothing
-			out.println("already locked!");
+			locked = true;
+			lockedTrunk = true;
+			out.println("all locked");
 			return;
 		}
 		//locking only possible if no alarm (e.g. from wrong pin setting)
 		if(!alarm && !silentAlarm){
 			if(!locked && open){
 				locked = true;
+				lockedTrunk = true;
 				changeState("OpenAndLocked");
 				return;
 			}
 			if(!locked && !open){
 				locked = true;
+				lockedTrunk = true;
 				changeState("ClosedAndLocked");
 				this.armThread();
 				return;
@@ -160,8 +218,9 @@ public class Car {
 		}
 	}
 	
-	public void unlock(int pin){
-		out.println("- unlock: " + pin);
+	//try to unlock door
+	public void unlock(int pin, int trunk){
+		out.println("- unlock: " + pin + ", trunk " + trunk);
 		if(1000 > pin || 9999 < pin){
 			System.err.println("pin not 4 digits!");
 			return;
@@ -170,54 +229,73 @@ public class Car {
 		//check pin
 		if(pin == this.pin){
 			tries = 3;
-			if(!locked){
-				this.interruptAlarmThread();
-				flash = false;
-				sound = false;
-				alarm = false;
-				silentAlarm = false;
-				locked = false;
-				armed = false;
-				if(open){
-					changeState("OpenAndUnlocked");
-				} else{
-					changeState("ClosedAndUnlocked");
-				}
-				//System.out.println("already unlocked!");
-				return;
-			}
-			if(alarm || silentAlarm){
-				this.interruptAlarmThread();
-				flash = false;
-				sound = false;
-				alarm = false;
-				silentAlarm = false;
-				locked = false;
-				armed = false;
-				if(open){
-					changeState("OpenAndUnlocked");
-				} else{
-					changeState("ClosedAndUnlocked");
-				}
-				return;
-			}
-			if(armed){
-				armed = false;
-				locked = false;
-				changeState("ClosedAndUnlocked");
-				return;
-			}
-			if(!armed){
-				if(locked && open){
-					locked = false;
-					changeState("OpenAndUnlocked");
+			if(trunk != 0) {
+				//unlock trunk only
+				if(!lockedTrunk){
+					//do nothing
+					out.println("trunk not locked!");
 					return;
 				}
-				if(locked && !open){
-					locked = false;
-					changeState("ClosedAndUnlocked");
-					this.interruptArmedThread();
+				if(lockedTrunk){
+					lockedTrunk = false;
+					out.println("trunk unlocked");
 					return;
+				}
+			} else {
+				if(!locked){
+					this.interruptAlarmThread();
+					flash = false;
+					sound = false;
+					alarm = false;
+					silentAlarm = false;
+					locked = false;
+					lockedTrunk = false;
+					armed = false;
+					if(open){
+						changeState("OpenAndUnlocked");
+					} else{
+						changeState("ClosedAndUnlocked");
+					}
+					//System.out.println("already unlocked!");
+					return;
+				}
+				if(alarm || silentAlarm){
+					this.interruptAlarmThread();
+					flash = false;
+					sound = false;
+					alarm = false;
+					silentAlarm = false;
+					locked = false;
+					lockedTrunk = false;
+					armed = false;
+					if(open){
+						changeState("OpenAndUnlocked");
+					} else{
+						changeState("ClosedAndUnlocked");
+					}
+					return;
+				}
+				if(armed){
+					armed = false;
+					locked = false;
+					lockedTrunk = false;
+					changeState("ClosedAndUnlocked");
+					return;
+				}
+				if(!armed){
+					if(locked && open){
+						locked = false;
+						lockedTrunk = false;
+						changeState("OpenAndUnlocked");
+						return;
+					}
+					if(locked && !open){
+						locked = false;
+						lockedTrunk = false;
+						changeState("ClosedAndUnlocked");
+						this.interruptArmedThread();
+						return;
+					}
 				}
 			}
 		} else{
@@ -239,7 +317,7 @@ public class Car {
 		}
 		if(!armed){
 			//should imply !open && locked
-			armed = !armed;
+			armed = true;
 			changeState("Armed");
 			return;
 		}
@@ -256,7 +334,7 @@ public class Car {
 			return;
 		}
 		
-		if(!locked){
+		if(!locked && !lockedTrunk){
 			if(oldPin == this.pin){
 				this.pin = newPin;
 				triesNewPin = 3;
@@ -309,9 +387,14 @@ public class Car {
 		}
 	}
 	
-	private boolean doorsOpen(){
-		if (doors[0] == 1 && doors[1] == 1 
-				&& doors[2] == 1 && doors[3] == 1){
+	private void setDoor(int door, int status) {
+		doors[door] = status;
+		out.println("# door " + door + " set to " + status + " /doors: " + Arrays.toString(doors));
+	}
+	
+	private boolean doorsClosed(){
+		if (doors[0] == 0 && doors[1] == 0 
+				&& doors[2] == 0 && doors[3] == 0){
 			return true;
 		}
 		return false;
@@ -348,5 +431,23 @@ public class Car {
 			alarmThread.interrupt();
 			alarmThread = null;
 		}
+	}
+	
+	public void status() {
+		out.println("^^");
+		out.println("^ armed: " + armed);
+		out.println("^ locked: " + locked);
+		out.println("^ lockedTrunk: " + lockedTrunk);
+		out.println("^ doors: " + Arrays.toString(doors));
+		out.println("^ open: " + open);
+		out.println("^ alarm: " + alarm);
+		out.println("^ silentAlarm: " + silentAlarm);
+		out.println("^ flash: " + flash);
+		out.println("^ sound: " + sound);
+		out.println("^ pin: " + pin);
+		out.println("^ tries: " + tries);
+		out.println("^ triesNewPin: " + triesNewPin);
+		out.println("^ state: " + state);
+		out.println("^^");
 	}
 }
