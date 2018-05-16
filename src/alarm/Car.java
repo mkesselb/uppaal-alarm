@@ -19,6 +19,7 @@ public class Car {
 	
 	public int pin;
 	public int tries;
+	public int triesNewPin;
 	
 	public Thread armedThread;
 	public Thread alarmThread;
@@ -39,6 +40,7 @@ public class Car {
 		armedThread = null;
 		alarmThread = null;
 		tries = 3;
+		triesNewPin = 3;
 		out = out_;
 		changeState("OpenAndUnlocked");
 	}
@@ -52,16 +54,30 @@ public class Car {
 			return;
 		}
 		if(!armed){
-			if(!open && locked){
-				open = true;
-				changeState("OpenAndLocked");
-				this.interruptArmedThread();
-				return;
-			}
-			if(!open && !locked){
-				open = true;
-				changeState("OpenAndUnlocked");
-				return;
+			if(!alarm && !silentAlarm){
+				if(!open && locked){
+					open = true;
+					changeState("OpenAndLocked");
+					this.interruptArmedThread();
+					return;
+				}
+				if(!open && !locked){
+					open = true;
+					changeState("OpenAndUnlocked");
+					return;
+				}
+			} else{
+				if(!open && locked){
+					open = true;
+					changeState("OpenAndLockedUnderAlarm");
+					this.interruptArmedThread();
+					return;
+				}
+				if(!open && !locked){
+					open = true;
+					changeState("OpenAndUnlockedUnderAlarm");
+					return;
+				}
 			}
 		}
 		if(armed){
@@ -76,18 +92,23 @@ public class Car {
 	//try to close door
 	public void close(){
 		out.println("- close");
-		if(silentAlarm && open){
-			open = false;
+		if(silentAlarm && open && locked){
+			this.interruptAlarmThread();
+			flash = false;
+			sound = false;
+			alarm = false;
 			silentAlarm = false;
+			
+			open = false;
 			changeState("Armed");
 			return;
 		}
-		if(!alarm){
-			if(!open){
-				//do nothing
-				out.println("already closed!");
-				return;
-			}
+		if(!open){
+			//do nothing
+			out.println("already closed!");
+			return;
+		}
+		if(!alarm && !silentAlarm){
 			if(open && locked){
 				open = false;
 				changeState("ClosedAndLocked");
@@ -97,6 +118,18 @@ public class Car {
 			if(open && !locked){
 				open = false;
 				changeState("ClosedAndUnlocked");
+				return;
+			}
+		} else{
+			if(open && locked){
+				open = false;
+				changeState("ClosedAndLockedUnderAlarm");
+				this.armThread();
+				return;
+			}
+			if(open && !locked){
+				open = false;
+				changeState("ClosedAndUnlockedUnderAlarm");
 				return;
 			}
 		}
@@ -109,16 +142,19 @@ public class Car {
 			out.println("already locked!");
 			return;
 		}
-		if(!locked && open){
-			locked = true;
-			changeState("OpenAndLocked");
-			return;
-		}
-		if(!locked && !open){
-			locked = true;
-			changeState("ClosedAndLocked");
-			this.armThread();
-			return;
+		//locking only possible if no alarm (e.g. from wrong pin setting)
+		if(!alarm && !silentAlarm){
+			if(!locked && open){
+				locked = true;
+				changeState("OpenAndLocked");
+				return;
+			}
+			if(!locked && !open){
+				locked = true;
+				changeState("ClosedAndLocked");
+				this.armThread();
+				return;
+			}
 		}
 	}
 	
@@ -133,8 +169,19 @@ public class Car {
 		if(pin == this.pin){
 			tries = 3;
 			if(!locked){
-				//do nothing
-				out.println("already unlocked!");
+				this.interruptAlarmThread();
+				flash = false;
+				sound = false;
+				alarm = false;
+				silentAlarm = false;
+				locked = false;
+				armed = false;
+				if(open){
+					changeState("OpenAndUnlocked");
+				} else{
+					changeState("ClosedAndUnlocked");
+				}
+				//System.out.println("already unlocked!");
 				return;
 			}
 			if(alarm || silentAlarm){
@@ -207,8 +254,23 @@ public class Car {
 			return;
 		}
 		
-		//TODO: implement pin
-		
+		if(!locked){
+			if(oldPin == this.pin){
+				this.pin = newPin;
+				triesNewPin = 3;
+				System.out.println("newPinSet");
+				
+			} else{
+				triesNewPin -= 1;
+				System.err.println("pin incorrect! remaining tries: " + triesNewPin);
+				if(triesNewPin < 1){
+					this.alarmThread();
+				}
+				return;
+			}
+		} else{
+			System.err.println("set pin not possible if locked!");
+		}
 	}
 	
 	public void activateFullAlarm(){
@@ -231,9 +293,17 @@ public class Car {
 		flash = false;
 		silentAlarm = true;
 		if(open){
-			changeState("SilentAndOpen");
+			if(locked){
+				changeState("SilentAndOpenLocked");
+			} else{
+				changeState("SilentAndOpenUnlocked");
+			}
 		} else{
-			changeState("SilentAndClosed");
+			if(locked){
+				changeState("SilentAndClosedLocked");
+			} else{
+				changeState("SilentAndClosedUnlocked");
+			}
 		}
 	}
 	
