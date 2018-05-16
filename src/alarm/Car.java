@@ -10,6 +10,7 @@ public class Car {
 
 	public boolean locked;
 	
+	public int[] doors;
 	public boolean open;
 	
 	public boolean alarm;
@@ -41,6 +42,7 @@ public class Car {
 		alarmThread = null;
 		tries = 3;
 		triesNewPin = 3;
+		doors = new int[] {1,1,1,1,1}; //doors 0-3, trunk 4
 		out = out_;
 		changeState("OpenAndUnlocked");
 	}
@@ -305,6 +307,14 @@ public class Car {
 				changeState("SilentAndClosedUnlocked");
 			}
 		}
+	}
+	
+	private boolean doorsOpen(){
+		if (doors[0] == 1 && doors[1] == 1 
+				&& doors[2] == 1 && doors[3] == 1){
+			return true;
+		}
+		return false;
 	}
 	
 	private void changeState(String newState){
