@@ -23,13 +23,49 @@ public class testCar {
 	}
 	
 	@Test
-	public void setPin() {
+	public void testSetPin() {
+		c.setPinCode(12345, 1234);
+		assertEquals(1234, c.pin);
+		
+		c.setPinCode(1234, 12345);
+		assertEquals(1234, c.pin);
+				
 		c.setPinCode(1234, 2345);
 		assertEquals(2345, c.pin);
+		
+		c.setPinCode(1234, 2345);
+		assertEquals(2345, c.pin);
+		assertEquals(2, c.triesNewPin);
+		c.setPinCode(1234, 2345);
+		assertEquals(2345, c.pin);
+		assertEquals(1, c.triesNewPin);
+		
+		c.setPinCode(1234, 2345);
+		
+		try {
+			Thread.sleep(90);
+		} catch (InterruptedException e) {
+			// ignore
+		}
+		
+		assertEquals(true, c.silentAlarm);
+		
+		c.close(0);
+		c.close(1);
+		c.close(2);
+		c.close(3);
+		assertEquals(false, c.open);
+		
+		c.open(3);
+		assertEquals(true, c.open);
 	}
 	
 	@Test
-	public void openIndividualDoors() {
+	public void testLockCloseOpen(){
+		c.lock();
+		assertEquals(true, c.locked);
+		c.lock();
+		
 		c.close(1);
 		assertEquals(true, c.open);
 		c.close(2);
@@ -40,15 +76,53 @@ public class testCar {
 		c.close(0);
 		assertEquals(false, c.open);
 		
+		c.unlock(1234, 0);
+		assertEquals(false, c.locked);
+		c.lock();
+		assertEquals(true, c.locked);
+		
+		c.open(3);
+		assertEquals(true, c.open);
+		
+		c.unlock(1234, 0);
+		assertEquals(false, c.locked);
+		c.lock();
+		assertEquals(true, c.locked);
+		
+		c.close(3);
+		assertEquals(false, c.open);
+	}
+	
+	@Test
+	public void testOpenIndividualDoors() {
+		c.open(-5);
+		c.open(5);
+		
+		c.open(1);
+		
+		c.close(1);
+		assertEquals(true, c.open);
+		c.close(2);
+		assertEquals(true, c.open);
+		c.close(3);
+		assertEquals(true, c.open);
+		
+		c.close(0);
+		assertEquals(false, c.open);
+		
+		c.close(3);
 		c.open(3);
 		assertEquals(true, c.open);
 		
 		c.close(3);
 		assertEquals(false, c.open);
+		
+		c.close(-5);
+		c.close(5);
 	}
 		
 	@Test
-	public void unlockTrunkInArmed() {
+	public void testUnlockTrunkInArmed() {
 		c.close(0);
 		c.close(1);
 		c.close(2);
@@ -70,6 +144,13 @@ public class testCar {
 		c.unlock(1234, 1);
 		assertEquals(false, c.lockedTrunk);
 		assertEquals(true, c.armed);
+		
+		c.unlock(1234, 1);
+		assertEquals(false, c.lockedTrunk);
+		assertEquals(true, c.armed);
+		c.open(4);
+		assertEquals(true, c.armed);
+		assertEquals(false, c.alarm);
 	}
 	
 	@Test
@@ -113,6 +194,37 @@ public class testCar {
 		}
 		
 		assertEquals(true, c.armed);
+	}
+	
+	@Test
+	public void testAlarmTrunk(){
+		c.close(0);
+		c.close(1);
+		c.close(2);
+		c.close(3);
+		assertEquals(false, c.open);
+		
+		c.lock();
+		assertEquals(true, c.locked);
+		assertEquals(true, c.lockedTrunk);
+		
+		try {
+			Thread.sleep(25);
+		} catch (InterruptedException e) {
+			// ignore
+		}
+		
+		assertEquals(true, c.armed);
+		
+		c.open(4);
+		
+		try {
+			Thread.sleep(90);
+		} catch (InterruptedException e) {
+			// ignore
+		}
+		
+		assertEquals(true, c.silentAlarm);
 	}
 	
 	@Test
@@ -203,6 +315,9 @@ public class testCar {
 		
 		assertEquals(false, c.alarm);
 		assertEquals("OpenAndUnlocked", c.state);
+		
+		c.unlock(1234, 0);
+		assertEquals(false, c.locked);
 	}
 	
 	@Test

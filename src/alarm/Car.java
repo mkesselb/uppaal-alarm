@@ -81,7 +81,7 @@ public class Car {
 					}
 				}
 			} else{
-				if(!open && locked){
+				if(!open && locked){ //cannot happen?
 					setDoor(door, 1);
 					if(!this.doorsClosed()) {
 						open = true;
@@ -170,7 +170,7 @@ public class Car {
 				}
 			}
 		} else{
-			if(open && locked){
+			if(open && locked){ //cannot happen?
 				setDoor(door, 0);
 				if(this.doorsClosed()) {
 					open = false;
