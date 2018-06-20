@@ -1,0 +1,8 @@
+set classpath=%classpath%;D:\git\uppaal-alarm\mujava\mujava.jar;D:\git\uppaal-alarm\mujava\openjava.jar;C:\Program Files\Java\jdk1.8.0_162\lib\tools.jar;D:\git\uppaal-alarm\mujava\classes
+java mujava.gui.GenMutantsMain
+
+
+java mujava.gui.RunTestMain 
+
+
+java mujava.gui.RunTestMain > output.txt

@@ -13,9 +13,9 @@ public class AlarmRunnable implements Runnable{
 		try {
 			System.out.println("* alarm started");
 			c.activateFullAlarm();
-			Thread.sleep(3 * 1000);
+			Thread.sleep(3 * 10);
 			c.activateFlashAlarm();
-			Thread.sleep(3 * 1000);
+			Thread.sleep(3 * 10);
 			c.endAlarm();
 		} catch (InterruptedException e) {
 			System.out.println("* alarm interrupted");
